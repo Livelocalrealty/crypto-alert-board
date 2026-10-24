@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>Crypto Alert Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Archivo:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://mctueqwjzppcxtygdnfn.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jdHVlcXdqenBwY3h0eWdkbmZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NjI4NjMsImV4cCI6MjEwODQzODg2M30.Oju5x90BzuVqy2rSJiK9BhFyQtmhnWb6aQDexOSyYLM";
+</script>
+<style>
+  :root{
+    --bg:#0b0e11; --panel:#14181d; --panel2:#1a1f26; --line:#242c36;
+    --text:#f2f4f7; --muted:#9aa6b2; --muted2:#6b7885;
+    --green:#16c784; --green-dim:#0e2e22; --red:#ff4757; --red-dim:#33181c;
+    --amber:#f5a623; --amber-dim:#2e2410;
+    --radius:16px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f3f4f2; --panel:#ffffff; --panel2:#f7f7f5; --line:#e2e6e1; --text:#12161a; --muted:#5b6773; --muted2:#8a95a1; --green-dim:#e3f6ee; --red-dim:#ffe9eb; --amber-dim:#fff3d6; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:"Archivo",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:18px 16px 40px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.02em;font-size:18px;flex-wrap:wrap}
+  .live-dot{width:10px;height:10px;border-radius:999px;background:var(--green);box-shadow:0 0 0 0 rgba(22,199,132,.5);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(22,199,132,.45)}70%{box-shadow:0 0 0 10px rgba(22,199,132,0)}100%{box-shadow:0 0 0 0 rgba(22,199,132,0)}}
+  .live-label{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.12em;font-weight:700;color:var(--green);border:1px solid var(--line);background:var(--panel);padding:6px 9px;border-radius:999px}
+  .clock{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);text-align:right;line-height:1.4}
+  .clock b{color:var(--text);font-size:13px}
+  .status{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
+  @media(max-width:640px){.status{grid-template-columns:1fr}}
+  .status h2{margin:0 0 6px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .status p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}
+  .status p strong{color:var(--text)}
+  .tickers{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chip{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;padding:6px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line)}
+  .recordbox{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .recordbox .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .record-num{font-family:"JetBrains Mono",monospace;font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin:6px 0 2px}
+  .record-num .w{color:var(--green)} .record-num .l{color:var(--red)}
+  .record-sub{font-size:12px;color:var(--muted);line-height:1.55}
+  .refresh-line{margin-top:10px;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted2)}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .refresh-note{margin:10px 2px 0;color:var(--muted);font-size:12.5px;line-height:1.55}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:10px 13px;border-radius:999px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .btn:active{transform:scale(.98)}
+  .btn.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
+  .btn.on{border-color:var(--green);color:var(--green)}
+  .dot{width:7px;height:7px;border-radius:99px;background:currentColor;display:inline-block}
+  .section-label{margin:22px 2px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .section-label h3{margin:0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .section-label span{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted2)}
+  .result-grid{display:grid;gap:10px}
+  .result-card{display:flex;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;flex-wrap:wrap}
+  .result-card.win{border-left:5px solid var(--green)}
+  .result-card.loss{border-left:5px solid var(--red)}
+  .result-badge{font-family:"JetBrains Mono",monospace;font-weight:800;font-size:13px;padding:7px 10px;border-radius:999px;white-space:nowrap}
+  .win .result-badge{background:var(--green-dim);color:var(--green)}
+  .loss .result-badge{background:var(--red-dim);color:var(--red)}
+  .result-main{flex:1;min-width:200px}
+  .result-main b{font-size:16px;letter-spacing:-.01em}
+  .result-main p{margin:3px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+  .result-side{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted2);text-align:right;line-height:1.6}
+  .waiting{margin-top:10px;background:var(--panel);border:1px dashed #33404e;border-radius:16px;padding:16px 18px;display:flex;gap:14px;align-items:center}
+  @media (prefers-color-scheme: light){ .waiting{border-color:#cbd3cc} }
+  .radar{flex:none;width:44px;height:44px;border-radius:999px;border:1px solid var(--line);display:grid;place-items:center;position:relative;background:var(--panel2);font-size:20px}
+  .radar::before,.radar::after{content:"";position:absolute;inset:0;border-radius:999px;border:1px solid var(--green);opacity:0;animation:radar 2.4s infinite}
+  .radar::after{animation-delay:1.2s}
+  @keyframes radar{0%{transform:scale(.6);opacity:.5}100%{transform:scale(1.45);opacity:0}}
+  .waiting p{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
+  .waiting p strong{color:var(--text)}
+  .alert-card{border-radius:20px;padding:18px;border:1px solid var(--line);background:var(--panel);overflow:hidden}
+  .alert-card.down{border-color:#4a2228;background:linear-gradient(180deg,var(--red-dim),var(--panel) 58%)}
+  .alert-card.up{border-color:#174d38;background:linear-gradient(180deg,var(--green-dim),var(--panel) 58%)}
+  .alert-card.flash{animation:flash .7s ease 3}
+  @keyframes flash{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
+  .alert-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
+  .direction{font-family:"JetBrains Mono",monospace;font-weight:800;font-size:34px;letter-spacing:-.03em;line-height:.95}
+  .down .direction{color:var(--red)} .up .direction{color:var(--green)}
+  .asset{font-size:13px;color:var(--muted);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-top:6px}
+  .time-pill{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700;background:var(--panel2);border:1px solid var(--line);padding:8px 10px;border-radius:999px;white-space:nowrap}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:16px}
+  @media(max-width:560px){.grid3{grid-template-columns:1fr 1fr}.grid3 .full{grid-column:1/-1}}
+  .metric{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .metric label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px}
+  .metric b{font-family:"JetBrains Mono",monospace;font-size:17px;letter-spacing:-.02em}
+  .metric small{display:block;color:var(--muted);font-size:12px;margin-top:3px;line-height:1.4}
+  .probbar{height:8px;background:var(--bg);border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:8px}
+  .probbar i{display:block;height:100%;background:var(--green);border-radius:999px}
+  .down .probbar i{background:var(--red)}
+  .support{margin-top:12px;padding:11px 12px;border-radius:12px;background:var(--bg);border:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.6;color:var(--muted)}
+  .support b{color:var(--text)}
+  .hero{margin-bottom:18px}
+  .hero .direction{font-size:clamp(46px,11vw,78px)}
+  .hero .asset{font-size:14px}
+  .hero-tag{display:inline-flex;align-items:center;gap:8px;font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:800;letter-spacing:.14em;color:var(--red);margin-bottom:12px}
+  .hero-tag .live-dot{background:var(--red);box-shadow:0 0 0 0 rgba(255,71,87,.5);animation:pulse-red 1.8s infinite}
+  @keyframes pulse-red{0%{box-shadow:0 0 0 0 rgba(255,71,87,.45)}70%{box-shadow:0 0 0 10px rgba(255,71,87,0)}100%{box-shadow:0 0 0 0 rgba(255,71,87,0)}}
+  .whisker{margin-top:12px;padding:11px 12px;border-radius:12px;background:var(--amber-dim);border:1px solid var(--amber);font-size:13.5px;line-height:1.55;color:var(--text)}
+  .whisker b{color:var(--amber)}
+  .badge-demo{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;font-weight:800;padding:5px 7px;border-radius:999px;background:var(--amber);color:#111;vertical-align:middle}
+  .feed{display:grid;gap:8px}
+  .feed-row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 13px;flex-wrap:wrap}
+  .feed-time{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted2);width:86px;flex:none}
+  .feed-call{font-family:"JetBrains Mono",monospace;font-weight:800;font-size:14px;flex:none}
+  .feed-call.dn{color:var(--red)} .feed-call.up{color:var(--green)}
+  .feed-detail{flex:1;min-width:180px;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .feed-detail b{color:var(--text)}
+  .feed-res{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:800;padding:5px 8px;border-radius:999px;flex:none}
+  .feed-res.w{background:var(--green-dim);color:var(--green)}
+  .feed-res.l{background:var(--red-dim);color:var(--red)}
+  .feed-res.split{background:var(--amber-dim);color:var(--amber)}
+  .how{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  @media(max-width:700px){.how{grid-template-columns:1fr}}
+  .how-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .how-card .n{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:800;width:28px;height:28px;border-radius:999px;display:grid;place-items:center;background:var(--text);color:var(--bg);margin-bottom:10px}
+  .how-card h4{margin:0 0 6px;font-size:15px}
+  .how-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
+  footer{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted2);font-size:12px;line-height:1.6}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <div class="recordbox" aria-label="Header records" style="margin-bottom:18px">
+    <div class="label">Records</div>
+    <div class="record-num" id="record-num">Loading…</div>
+    <div class="record-sub" id="record-sub">Graded three ways on every alert: Kalshi official, Phantom (World) estimate, Polymarket official.</div>
+    <div class="refresh-line" id="feed-status">Live feed · connecting…</div>
+  </div>
+
+  <div id="live-zone"></div>
+
+  <div class="section-label"><h3>Results</h3><span id="results-count"></span></div>
+  <div class="result-grid" id="results"></div>
+
+  <footer>Signals only, manual trading. This board updates itself within seconds of an alert firing or settling. Not financial advice.</footer>
+</div>
+
+<script>
+  const esc = s => String(s ?? "").replace(/[&<>\"']/g,
+    c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+  function fmtPrice(v){
+    if (v === null || v === undefined || isNaN(v)) return "n/a";
+    const n = Number(v);
+    if (Math.abs(n) >= 100) return n.toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+    if (Math.abs(n) >= 10)  return n.toFixed(2);
+    return String(Number(n.toFixed(4)));
+  }
+  function pct(v){ return (v === null || v === undefined || isNaN(v)) ? null : Math.round(Number(v)*100) + "%"; }
+
+  const seenLive = new Set();
+  let firstRender = true;
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  loadAll();
+  sb.channel("board-live")
+    .on("postgres_changes", {event:"*", schema:"public", table:"alerts"}, () => loadAll())
+    .on("postgres_changes", {event:"*", schema:"public", table:"board_state"}, () => loadAll())
+    .subscribe(status => {
+      document.getElementById("feed-status").textContent =
+        "Live feed · " + (status === "SUBSCRIBED" ? "connected · updates within seconds" : status.toLowerCase());
+    });
+
+  async function loadAll(){
+    const [stateRes, alertsRes] = await Promise.all([
+      sb.from("board_state").select("*").eq("id", 1).single(),
+      sb.from("alerts").select("*").order("fired_at", {ascending:false}).limit(60)
+    ]);
+    if (stateRes.data) renderRecord(stateRes.data);
+    if (alertsRes.data) renderAlerts(alertsRes.data);
+    firstRender = false;
+  }
+
+  function renderRecord(s){
+    document.getElementById("record-num").innerHTML =
+      '<span class="w">' + s.kalshi_wins + ' W</span> <span class="l">' + s.kalshi_losses + ' L</span>';
+    document.getElementById("record-sub").textContent =
+      "Record: " + s.kalshi_wins + " wins, " + s.kalshi_losses + " losses (Kalshi). " +
+      "Phantom estimate: " + s.phantom_wins + " wins, " + s.phantom_losses + " losses. " +
+      "Polymarket: " + s.polymarket_wins + " wins, " + s.polymarket_losses + " losses.";
+  }
+
+  function liveCard(a, hero){
+    const dirCls = a.direction === "UP" ? "up" : "down";
+    const isNew = !firstRender && !seenLive.has(a.alert_key);
+    seenLive.add(a.alert_key);
+    const tag = hero ? "LIVE ALERT" : "ALSO THIS BLOCK";
+    const prob = pct(a.model_prob);
+    const edgeTxt = (a.edge !== null && a.edge !== undefined)
+      ? "Edge +" + Math.round(Number(a.edge)*100) + " pts over buy cost." : "";
+    return '<article class="alert-card ' + dirCls + (hero ? " hero" : "") + (isNew ? " flash" : "") + '" style="margin-bottom:18px">' +
+      '<div class="hero-tag"><span class="live-dot" aria-hidden="true"></span> ' + tag + ' — 15 MIN BLOCK ENDING ' + esc(a.window_label || "") + '</div>' +
+      '<div class="alert-head"><div><div class="direction">' + esc(a.direction) + ' on ' + esc(a.coin) + '</div>' +
+      '<div class="asset">15 min block ending ' + esc(a.window_label || "") + ' · Phantom · World</div></div>' +
+      (a.minutes_left != null ? '<div class="time-pill">⏱ ' + Number(a.minutes_left).toFixed(1) + ' MIN LEFT</div>' : "") +
+      '</div>' +
+      '<div class="grid3">' +
+        '<div class="metric"><label>Phantom mark (est)</label><b>' + fmtPrice(a.phantom_mark) + '</b><small>Price to beat for ' + esc(a.direction) + '</small></div>' +
+        '<div class="metric"><label>Price now</label><b>' + fmtPrice(a.price_now) + '</b><small>Price when the alert fired</small></div>' +
+        '<div class="metric full"><label>Model probability (Phantom)</label><b>' + (prob || "n/a") + ' ' + esc(a.direction) + '</b>' +
+        (edgeTxt ? '<small>' + edgeTxt + '</small>' : "") +
+        (prob ? '<div class="probbar"><i style="width:' + Math.round(Number(a.model_prob)*100) + '%"></i></div>' : "") + '</div>' +
+      '</div>' +
+      (a.whisker ? '<div class="whisker"><b>Whisker warning:</b> price is hugging the Phantom mark and World settles on one end print, so this can flip in the last seconds.</div>' : "") +
+      (a.support_text ? '<div class="support">' + esc(a.support_text) + '</div>' : "") +
+      '</article>';
+  }
+
+  function gradeWord(label, r){
+    if (r === "win") return label + " won";
+    if (r === "loss") return label + " lost";
+    return label + " n/a";
+  }
+
+  function resultCard(a){
+    const win = a.kalshi_result === "win";
+    const grades = [gradeWord("Kalshi", a.kalshi_result),
+                    gradeWord("Phantom est.", a.phantom_result),
+                    gradeWord("Polymarket", a.polymarket_result)].join(" · ");
+    const fired = a.fired_at ? new Date(a.fired_at) : null;
+    const when = fired ? fired.toLocaleString("en-US",{timeZone:"America/Chicago", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}) + " CT" : "";
+    return '<div class="result-card ' + (win ? "win" : "loss") + '">' +
+      '<span class="result-badge">' + (win ? "WIN" : "LOSS") + '</span>' +
+      '<div class="result-main"><b>' + esc(a.direction) + ' on ' + esc(a.coin) + '</b>' +
+      '<p>Block ending ' + esc(a.window_label || "") + ' · ' + grades + '.</p></div>' +
+      '<div class="result-side">' + (a.settle_text ? esc(a.settle_text) + '<br>' : "") + esc(when) + '</div>' +
+      '</div>';
+  }
+
+  function renderAlerts(rows){
+    const live = rows.filter(r => r.status === "live");
+    const settled = rows.filter(r => r.status !== "live");
+    const zone = document.getElementById("live-zone");
+    if (live.length){
+      zone.innerHTML = live.map((a, i) => liveCard(a, i === 0)).join("");
+    } else {
+      zone.innerHTML = '<div class="waiting" style="margin-bottom:18px"><div class="radar">📡</div>' +
+        '<p><strong>No live alert right now.</strong> Watching BTC, ETH, SOL, XRP and HYPE around the clock. A fresh call appears here the moment it fires, no refresh needed.</p></div>';
+    }
+    document.getElementById("results-count").textContent =
+      settled.length ? settled.length + " most recent" : "";
+    document.getElementById("results").innerHTML =
+      settled.length ? settled.map(resultCard).join("") :
+      '<div class="result-card"><div class="result-main"><p>No settled results yet.</p></div></div>';
+  }
+</script>
+</body>
+</html>
