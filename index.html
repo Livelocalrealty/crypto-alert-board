@@ -169,7 +169,10 @@
     .subscribe(status => {
       document.getElementById("feed-status").textContent =
         "Live feed · " + (status === "SUBSCRIBED" ? "connected · updates within seconds" : status.toLowerCase());
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setTimeout(loadAll, 5000);
     });
+  setInterval(loadAll, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) loadAll(); });
 
   async function loadAll(){
     const [stateRes, alertsRes] = await Promise.all([
