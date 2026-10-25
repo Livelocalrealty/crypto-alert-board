@@ -254,9 +254,7 @@
       if (actx.state === "suspended") actx.resume();
     } catch(e) {}
   }
-  function chime(){
-    if (!soundOn) return;
-    ensureCtx();
+  function playNotes(){
     if (!actx) return;
     try {
       const t0 = actx.currentTime;
@@ -271,6 +269,19 @@
         o.start(t); o.stop(t + 0.5);
       });
     } catch(e) {}
+  }
+  function chime(){
+    if (!soundOn) return;
+    ensureCtx();
+    if (!actx) return;
+    if (actx.state === "running") { playNotes(); return; }
+    let tries = 0;
+    const iv = setInterval(() => {
+      tries++;
+      ensureCtx();
+      if (actx && actx.state === "running") { playNotes(); clearInterval(iv); }
+      else if (tries >= 3) clearInterval(iv);
+    }, 700);
   }
   function paintSndBtn(){
     const b = document.getElementById("snd-btn");
