@@ -280,7 +280,7 @@
       tries++;
       ensureCtx();
       if (actx && actx.state === "running") { playNotes(); clearInterval(iv); }
-      else if (tries >= 3) clearInterval(iv);
+      else if (tries >= 6) clearInterval(iv);
     }, 700);
   }
   function paintSndBtn(){
@@ -294,6 +294,8 @@
     if (soundOn) chime();
   });
   document.addEventListener("pointerdown", () => { if (soundOn) ensureCtx(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && soundOn) ensureCtx(); });
+  window.addEventListener("focus", () => { if (soundOn) ensureCtx(); });
   paintSndBtn();
 
   function renderAlerts(rows){
