@@ -169,10 +169,15 @@
     .subscribe(status => {
       document.getElementById("feed-status").textContent =
         "Live feed · " + (status === "SUBSCRIBED" ? "connected · updates within seconds" : status.toLowerCase());
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setTimeout(loadAll, 5000);
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        setTimeout(loadAll, 2000);
+        setTimeout(loadAll, 8000);
+      }
     });
-  setInterval(loadAll, 60000);
+  setInterval(loadAll, 15000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadAll(); });
+  window.addEventListener("focus", loadAll);
+  window.addEventListener("online", loadAll);
 
   async function loadAll(){
     const [stateRes, alertsRes] = await Promise.all([
