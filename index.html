@@ -320,10 +320,16 @@
     const settled = rows.filter(r => r.status !== "live");
     const freshAlert = !firstRender && live.some(a => !seenLive.has(a.alert_key));
     const zone = document.getElementById("live-zone");
-    if (live.length){
-      zone.innerHTML = pauseCard() + live.map((a, i) => liveCard(a, i === 0)).join("");
+    const pc = pauseCard();
+    if (pc){
+      // During a stoppage the pause card takes the whole live-alert
+      // space on its own: no live alert box under it, since no trade
+      // alerts are being watched for until the pause ends.
+      zone.innerHTML = pc;
+    } else if (live.length){
+      zone.innerHTML = live.map((a, i) => liveCard(a, i === 0)).join("");
     } else {
-      zone.innerHTML = pauseCard() + '<div class="waiting" style="margin-bottom:18px"><div class="radar">📡</div>' +
+      zone.innerHTML = '<div class="waiting" style="margin-bottom:18px"><div class="radar">📡</div>' +
         '<p><strong>No live alert right now.</strong> Watching BTC, ETH, SOL, XRP and HYPE around the clock. A fresh call appears here the moment it fires, no refresh needed.</p></div>';
     }
     document.getElementById("results-count").textContent =
