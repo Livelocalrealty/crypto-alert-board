@@ -258,9 +258,9 @@
   }
 
   function eraRecordText(c){
-    return "Kalshi " + c.kalshi.w + "-" + c.kalshi.l +
-      " · Phantom est. " + c.phantom.w + "-" + c.phantom.l +
-      " · Polymarket " + c.polymarket.w + "-" + c.polymarket.l;
+    return "Kalshi " + c.kalshi.w + "-" + c.kalshi.l + " (" + winRate(c.kalshi.w, c.kalshi.l) + ")" +
+      " · Phantom est. " + c.phantom.w + "-" + c.phantom.l + " (" + winRate(c.phantom.w, c.phantom.l) + ")" +
+      " · Polymarket " + c.polymarket.w + "-" + c.polymarket.l + " (" + winRate(c.polymarket.w, c.polymarket.l) + ")";
   }
 
   function renderEras(eraCounts){
@@ -282,13 +282,19 @@
     }).join("");
   }
 
+  function winRate(w, l){
+    const n = (w || 0) + (l || 0);
+    return n ? Math.round(100 * w / n) + "%" : "n/a";
+  }
+
   function renderRecord(s){
     document.getElementById("record-num").innerHTML =
-      '<span class="w">' + s.kalshi_wins + ' W</span> <span class="l">' + s.kalshi_losses + ' L</span>';
+      '<span class="w">' + s.kalshi_wins + ' W</span> <span class="l">' + s.kalshi_losses + ' L</span>' +
+      ' <span style="font-size:17px;color:var(--muted);font-weight:700">(' + winRate(s.kalshi_wins, s.kalshi_losses) + ')</span>';
     document.getElementById("record-sub").textContent =
-      "Record: " + s.kalshi_wins + " wins, " + s.kalshi_losses + " losses (Kalshi). " +
-      "Phantom estimate: " + s.phantom_wins + " wins, " + s.phantom_losses + " losses. " +
-      "Polymarket: " + s.polymarket_wins + " wins, " + s.polymarket_losses + " losses.";
+      "Record: " + s.kalshi_wins + " wins, " + s.kalshi_losses + " losses (Kalshi, " + winRate(s.kalshi_wins, s.kalshi_losses) + "). " +
+      "Phantom estimate: " + s.phantom_wins + " wins, " + s.phantom_losses + " losses (" + winRate(s.phantom_wins, s.phantom_losses) + "). " +
+      "Polymarket: " + s.polymarket_wins + " wins, " + s.polymarket_losses + " losses (" + winRate(s.polymarket_wins, s.polymarket_losses) + ").";
   }
 
   function liveCard(a, hero){
