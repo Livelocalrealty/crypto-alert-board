@@ -137,6 +137,7 @@
     <div class="label">Records</div>
     <div class="record-num" id="record-num">Loading…</div>
     <div class="record-sub" id="record-sub">Graded three ways on every alert: Kalshi official, Phantom (World) estimate, Polymarket official.</div>
+    <div class="record-sub" id="era-line" style="margin-top:6px"></div>
     <div class="refresh-line" id="feed-status">Live feed · connecting…</div>
     <button id="snd-btn" type="button" style="margin-top:12px;background:#141c2e;border:1px solid #26324a;color:#e8edf5;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">🔕 Alert sound: off · tap to turn on</button>
   </div>
@@ -145,6 +146,9 @@
 
   <div class="section-label"><h3>Results</h3><span id="results-count"></span></div>
   <div class="result-grid" id="results"></div>
+
+  <div class="section-label"><h3>Algo eras</h3><span>record under each rule set</span></div>
+  <div class="result-grid" id="eras"></div>
 
   <footer>Signals only, manual trading. This board updates itself within seconds of an alert firing or settling. Not financial advice.</footer>
 </div>
@@ -188,9 +192,94 @@
       sb.from("board_state").select("*").eq("id", 1).single(),
       sb.from("alerts").select("*").order("fired_at", {ascending:false}).limit(60)
     ]);
-    if (stateRes.data) { window._pause = stateRes.data; renderRecord(stateRes.data); }
+    if (stateRes.data) { window._pause = stateRes.data; renderRecord(stateRes.data); loadEras(stateRes.data); }
     if (alertsRes.data) renderAlerts(alertsRes.data);
     firstRender = false;
+  }
+
+  // Algo eras: each algo update closes the current era and opens a new
+  // one, so the record under each rule set stays visible next to the
+  // all-time record at the top. Canonical boundaries live in
+  // ~/workspace/crypto-agent/eras.json, stored there by window end
+  // (UTC); fired_at here is the window start, 15 minutes earlier, so
+  // each boundary below is that era's window-end start minus 15 min.
+  // When the algo changes again, add the new era at the TOP of this
+  // list (and in eras.json) and the split follows automatically.
+  const ERAS = [
+    { label: "Oct 21 update", dates: "Oct 21, 2026 to now", current: true,
+      from_fired_at: "2026-10-21T15:45:00Z",
+      note: "Whisker setups need headline 85% or higher. Polymarket confirmation floor 55%. Chop guard pauses alerts after 3 straight losses." },
+    { label: "Original rules", dates: "Oct 12 to Oct 21, 2026", current: false,
+      from_fired_at: null,
+      note: "The rule set as launched on Oct 12." }
+  ];
+
+  async function countGrade(field, val, fromFiredAt){
+    let q = sb.from("alerts").select("alert_key", {count: "exact", head: true})
+      .eq(field, val);
+    if (fromFiredAt) q = q.gte("fired_at", fromFiredAt);
+    const r = await q;
+    return (r && typeof r.count === "number") ? r.count : 0;
+  }
+
+  async function loadEras(state){
+    try {
+      const fields = [["kalshi_result", "kalshi"], ["phantom_result", "phantom"], ["polymarket_result", "polymarket"]];
+      const totals = {
+        kalshi: { w: state.kalshi_wins, l: state.kalshi_losses },
+        phantom: { w: state.phantom_wins, l: state.phantom_losses },
+        polymarket: { w: state.polymarket_wins, l: state.polymarket_losses }
+      };
+      // ERAS is newest first. cum[i] = graded counts from ERAS[i]'s
+      // boundary onward: era i plus every older era. The oldest era has
+      // no boundary, so its cum is the all-time totals. Era i's own
+      // record is cum[i] minus cum[i-1] (the newer eras above it).
+      const cum = [];
+      for (const e of ERAS){
+        if (!e.from_fired_at) { cum.push(totals); continue; }
+        const c = {};
+        for (const [field, key] of fields){
+          c[key] = { w: await countGrade(field, "win", e.from_fired_at),
+                     l: await countGrade(field, "loss", e.from_fired_at) };
+        }
+        cum.push(c);
+      }
+      const eraCounts = ERAS.map((e, i) => {
+        const out = {};
+        for (const [, key] of fields){
+          const newer = (i === 0) ? { w: 0, l: 0 } : cum[i - 1][key];
+          out[key] = { w: cum[i][key].w - newer.w,
+                       l: cum[i][key].l - newer.l };
+        }
+        return out;
+      });
+      renderEras(eraCounts);
+    } catch(e) { /* era line stays blank if counts fail */ }
+  }
+
+  function eraRecordText(c){
+    return "Kalshi " + c.kalshi.w + "-" + c.kalshi.l +
+      " · Phantom est. " + c.phantom.w + "-" + c.phantom.l +
+      " · Polymarket " + c.polymarket.w + "-" + c.polymarket.l;
+  }
+
+  function renderEras(eraCounts){
+    const cur = ERAS.findIndex(e => e.current);
+    if (cur >= 0 && eraCounts[cur]){
+      document.getElementById("era-line").innerHTML =
+        "<b>Since the " + esc(ERAS[cur].label) + ":</b> " + esc(eraRecordText(eraCounts[cur])) + ".";
+    }
+    document.getElementById("eras").innerHTML = ERAS.map((e, i) => {
+      const c = eraCounts[i];
+      if (!c) return "";
+      const n = (c.kalshi.w + c.kalshi.l);
+      return '<div class="result-card">' +
+        '<div class="result-main"><b>' + esc(e.label) + (e.current ? " · current rules" : "") + '</b>' +
+        '<p>' + esc(eraRecordText(c)) + '</p>' +
+        '<p>' + esc(e.note) + '</p></div>' +
+        '<div class="result-side">' + esc(e.dates) + '<br>' + n + ' alerts graded (Kalshi)</div>' +
+        '</div>';
+    }).join("");
   }
 
   function renderRecord(s){
