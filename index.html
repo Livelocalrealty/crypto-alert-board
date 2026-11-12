@@ -128,6 +128,12 @@
   .feed-res.w{background:var(--green-dim);color:var(--green)}
   .feed-res.l{background:var(--red-dim);color:var(--red)}
   .feed-res.split{background:var(--amber-dim);color:var(--amber)}
+  .demo-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+  @media(max-width:700px){.demo-strip{grid-template-columns:1fr 1fr}}
+  .demo-score{margin:0 0 12px;padding:11px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.6;color:var(--muted)}
+  .demo-score b{color:var(--text)}
+  .result-badge.open{background:var(--amber-dim);color:var(--amber)}
+  .pnl-pos{color:var(--green)} .pnl-neg{color:var(--red)}
   .how{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   @media(max-width:700px){.how{grid-template-columns:1fr}}
   .how-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
@@ -162,6 +168,10 @@
   <div class="section-label"><h3>Algo eras</h3><span>record under each rule set</span></div>
   <div class="result-grid" id="eras"></div>
 
+  <div class="section-label"><h3>Demo trader</h3><span id="demo-count"></span></div>
+  <div id="demo-strip"></div>
+  <div class="result-grid" id="demo-trades"></div>
+
   <footer>Alerts fire from the algo; the demo auto-trader mirrors them at $1 a trade and every position rides to settlement. This board updates itself within seconds of an alert firing or settling. Not financial advice.</footer>
 </div>
 
@@ -186,6 +196,8 @@
   sb.channel("board-live")
     .on("postgres_changes", {event:"*", schema:"public", table:"alerts"}, () => loadAll())
     .on("postgres_changes", {event:"*", schema:"public", table:"board_state"}, () => loadAll())
+    .on("postgres_changes", {event:"*", schema:"public", table:"demo_state"}, () => loadAll())
+    .on("postgres_changes", {event:"*", schema:"public", table:"demo_executions"}, () => loadAll())
     .subscribe(status => {
       document.getElementById("feed-status").textContent =
         "Live feed · " + (status === "SUBSCRIBED" ? "connected · updates within seconds" : status.toLowerCase());
@@ -200,13 +212,100 @@
   window.addEventListener("online", loadAll);
 
   async function loadAll(){
-    const [stateRes, alertsRes] = await Promise.all([
+    const [stateRes, alertsRes, demoStateRes, demoExecRes] = await Promise.all([
       sb.from("board_state").select("*").eq("id", 1).single(),
-      sb.from("alerts").select("*").order("fired_at", {ascending:false}).limit(60)
+      sb.from("alerts").select("*").order("fired_at", {ascending:false}).limit(60),
+      sb.from("demo_state").select("*").eq("id", 1).single(),
+      sb.from("demo_executions").select("*").order("fired_at_utc", {ascending:false}).limit(30)
     ]);
     if (stateRes.data) { window._pause = stateRes.data; renderRecord(stateRes.data); renderTrading(stateRes.data); loadEras(stateRes.data); }
     if (alertsRes.data) renderAlerts(alertsRes.data);
+    try { renderDemo(demoStateRes.data || null, demoExecRes.data || []); }
+    catch(e) { /* the demo section must never break the board */ }
     firstRender = false;
+  }
+
+  // ---- Demo trader (Kalshi demo auto-executor) ----
+  // demo_state (id=1) carries the account summary and the scorecard;
+  // demo_executions carries one row per demo trade. Both are written
+  // by the same ledger sync that feeds the rest of the board. With no
+  // trades yet the section renders its empty state and lights up on
+  // its own when the first execution lands.
+  function fmtMoney(v){
+    if (v === null || v === undefined || isNaN(v)) return "n/a";
+    return "$" + Number(v).toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function fmtSignedMoney(v){
+    if (v === null || v === undefined || isNaN(v)) return "n/a";
+    const n = Number(v);
+    return (n > 0 ? "+" : "") + fmtMoney(n);
+  }
+  function fmtDiffCents(v){
+    if (v === null || v === undefined || isNaN(v)) return "n/a";
+    const n = Number(v);
+    return (n > 0 ? "+" : "") + (Math.round(n * 100) / 100) + "¢";
+  }
+  function fmtDelay(v){
+    if (v === null || v === undefined || isNaN(v)) return "n/a";
+    return Number(v).toFixed(1) + "s";
+  }
+  function demoCard(r){
+    const settled = r.result === "won" || r.result === "lost";
+    const won = r.result === "won";
+    const cls = settled ? (won ? "win" : "loss") : "";
+    const badge = settled ? (won ? "WON" : "LOST") : "OPEN";
+    const end = r.window_end_utc ? new Date(r.window_end_utc) : null;
+    const endTxt = end && !isNaN(end)
+      ? end.toLocaleString("en-US",{timeZone:"America/Chicago", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}) + " CT" : "";
+    const bits = [];
+    if (r.fill_price_cents != null && r.alert_cost_cents != null)
+      bits.push("Bought at " + r.fill_price_cents + "¢ vs " + r.alert_cost_cents + "¢ at the alert");
+    else if (r.fill_price_cents != null)
+      bits.push("Bought at " + r.fill_price_cents + "¢");
+    if (r.fill_delay_s != null) bits.push("filled " + fmtDelay(r.fill_delay_s) + " after the alert");
+    if (r.contracts != null) bits.push(r.contracts + (Number(r.contracts) === 1 ? " contract" : " contracts"));
+    if (r.stake_cents != null && Number(r.stake_cents) > 0) bits.push(fmtMoney(Number(r.stake_cents) / 100) + " in");
+    let settleLine = "";
+    if (settled){
+      settleLine = "<p>" + (won ? "Won" : "Lost") +
+        (r.payout_cents != null ? " · paid " + fmtMoney(Number(r.payout_cents) / 100) : "") +
+        (r.pnl_cents != null ? ' · P&amp;L <span class="' + (Number(r.pnl_cents) >= 0 ? "pnl-pos" : "pnl-neg") + '">' + fmtSignedMoney(Number(r.pnl_cents) / 100) + "</span>" : "") +
+        ".</p>";
+    }
+    return '<div class="result-card ' + cls + '">' +
+      '<span class="result-badge' + (settled ? "" : " open") + '">' + badge + '</span>' +
+      '<div class="result-main"><b>' + esc(r.direction || "") + ' on ' + esc(r.coin || "") + '</b>' +
+      (bits.length ? '<p>' + esc(bits.join(" · ")) + '.</p>' : "") + settleLine + '</div>' +
+      '<div class="result-side">' + (endTxt ? "Block ending<br>" + esc(endTxt) : "") + '</div>' +
+      '</div>';
+  }
+  function renderDemo(s, rows){
+    const strip = document.getElementById("demo-strip");
+    const list = document.getElementById("demo-trades");
+    const count = document.getElementById("demo-count");
+    if (!strip || !list) return;
+    rows = Array.isArray(rows) ? rows : [];
+    const taken = s ? Number(s.trades_taken || 0) : 0;
+    if (count) count.textContent = taken ? taken + (taken === 1 ? " trade" : " trades") : "";
+    if (!s){
+      strip.innerHTML = "";
+      list.innerHTML = '<div class="result-card"><div class="result-main"><p>No demo trades yet, watching.</p></div></div>';
+      return;
+    }
+    const pnl = Number(s.demo_pnl_dollars || 0);
+    strip.innerHTML =
+      '<div class="demo-strip">' +
+      '<div class="metric"><label>Demo account</label><b>' + fmtMoney(s.balance_dollars) + '</b><small>Kalshi demo balance</small></div>' +
+      '<div class="metric"><label>Trades taken</label><b>' + taken + '</b><small>Alerts the demo trader bought</small></div>' +
+      '<div class="metric"><label>Demo P&amp;L</label><b class="' + (pnl > 0 ? "pnl-pos" : (pnl < 0 ? "pnl-neg" : "")) + '">' + fmtSignedMoney(s.demo_pnl_dollars) + '</b><small>Settled demo trades only</small></div>' +
+      '<div class="metric"><label>Demo record</label><b>' + (s.demo_wins || 0) + '-' + (s.demo_losses || 0) + '</b><small>' + winRate(s.demo_wins, s.demo_losses) + ' on settled demo trades</small></div>' +
+      '</div>' +
+      '<div class="demo-score">On traded alerts: <b>stated ' + (s.stated_wins || 0) + '-' + (s.stated_losses || 0) + ' (' + winRate(s.stated_wins, s.stated_losses) + ')</b>' +
+      ' · <b>demo ' + (s.demo_wins || 0) + '-' + (s.demo_losses || 0) + ' (' + winRate(s.demo_wins, s.demo_losses) + ')</b>' +
+      ' · avg fill <b>' + fmtDiffCents(s.avg_fill_diff_cents) + '</b> vs alert cost' +
+      ' · avg delay <b>' + fmtDelay(s.avg_delay_s) + '</b></div>';
+    list.innerHTML = rows.length ? rows.map(demoCard).join("") :
+      '<div class="result-card"><div class="result-main"><p>No demo trades yet, watching.</p></div></div>';
   }
 
   // Algo eras: each algo update closes the current era and opens a new
