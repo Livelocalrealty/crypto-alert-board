@@ -107,6 +107,13 @@
   .pause-tag{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:800;letter-spacing:.14em;color:var(--amber);margin-bottom:8px}
   .pause-reason{font-size:17px;font-weight:700;line-height:1.45}
   .pause-until{margin-top:8px;color:var(--muted);font-size:13.5px;line-height:1.55}
+  .trade-card{margin-bottom:18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .trade-card .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .trade-note{margin-top:6px;color:var(--muted);font-size:13px;line-height:1.55;max-width:520px}
+  .trade-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .trade-pill{font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:800;letter-spacing:.1em;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
+  .trade-pill.on{color:var(--green);border-color:var(--green)}
+  .trade-pill.off{color:var(--red);border-color:var(--red)}
   .whisker{margin-top:12px;padding:11px 12px;border-radius:12px;background:var(--amber-dim);border:1px solid var(--amber);font-size:13.5px;line-height:1.55;color:var(--text)}
   .whisker b{color:var(--amber)}
   .badge-demo{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.12em;font-weight:800;padding:5px 7px;border-radius:999px;background:var(--amber);color:#111;vertical-align:middle}
@@ -140,6 +147,11 @@
     <div class="record-sub" id="era-line" style="margin-top:6px"></div>
     <div class="refresh-line" id="feed-status">Live feed · connecting…</div>
     <button id="snd-btn" type="button" style="margin-top:12px;background:#141c2e;border:1px solid #26324a;color:#e8edf5;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">🔕 Alert sound: off · tap to turn on</button>
+    <div aria-label="Auto-trading control" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="trade-pill" id="trade-pill">CHECKING…</span>
+      <button id="trade-btn" type="button" disabled style="background:#141c2e;border:1px solid #26324a;color:#e8edf5;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">…</button>
+    </div>
+    <div class="trade-note" id="trade-note" style="margin-top:8px">Checking the trading switch…</div>
   </div>
 
   <div id="live-zone"></div>
@@ -150,7 +162,7 @@
   <div class="section-label"><h3>Algo eras</h3><span>record under each rule set</span></div>
   <div class="result-grid" id="eras"></div>
 
-  <footer>Signals only, manual trading. This board updates itself within seconds of an alert firing or settling. Not financial advice.</footer>
+  <footer>Alerts fire from the algo; the demo auto-trader mirrors them at $1 a trade and every position rides to settlement. This board updates itself within seconds of an alert firing or settling. Not financial advice.</footer>
 </div>
 
 <script>
@@ -192,7 +204,7 @@
       sb.from("board_state").select("*").eq("id", 1).single(),
       sb.from("alerts").select("*").order("fired_at", {ascending:false}).limit(60)
     ]);
-    if (stateRes.data) { window._pause = stateRes.data; renderRecord(stateRes.data); loadEras(stateRes.data); }
+    if (stateRes.data) { window._pause = stateRes.data; renderRecord(stateRes.data); renderTrading(stateRes.data); loadEras(stateRes.data); }
     if (alertsRes.data) renderAlerts(alertsRes.data);
     firstRender = false;
   }
@@ -296,6 +308,68 @@
       "Phantom estimate: " + s.phantom_wins + " wins, " + s.phantom_losses + " losses (" + winRate(s.phantom_wins, s.phantom_losses) + "). " +
       "Polymarket: " + s.polymarket_wins + " wins, " + s.polymarket_losses + " losses (" + winRate(s.polymarket_wins, s.polymarket_losses) + ").";
   }
+
+  // ---- Auto-trading kill switch card ----
+  // Reads trading_enabled off the board_state row that loadAll already
+  // fetches on the normal refresh cycle, so the pill stays current on
+  // its own. The column and the set_trading_enabled RPC arrive with
+  // supabase/add_trading_control.sql; until they exist the card says
+  // the control is not set up, stays inert, and nothing in here may
+  // ever throw into the rest of the page.
+  window._trading = { setup: false, enabled: null, busy: false };
+
+  function renderTrading(s){
+    try {
+      const pill = document.getElementById("trade-pill");
+      const btn = document.getElementById("trade-btn");
+      const note = document.getElementById("trade-note");
+      if (!pill || !btn || !note) return;
+      if (!s || !("trading_enabled" in s) || s.trading_enabled === null || s.trading_enabled === undefined){
+        window._trading.setup = false;
+        window._trading.enabled = null;
+        pill.textContent = "NOT SET UP";
+        pill.className = "trade-pill off";
+        btn.disabled = true;
+        btn.textContent = "Not set up yet";
+        note.textContent = "Trading control not set up yet. The board works as before; this switch wakes up once the trading control is added.";
+        return;
+      }
+      const on = s.trading_enabled === true;
+      window._trading.setup = true;
+      window._trading.enabled = on;
+      pill.textContent = on ? "TRADING ON" : "TRADING OFF";
+      pill.className = "trade-pill " + (on ? "on" : "off");
+      btn.disabled = !!window._trading.busy;
+      btn.textContent = on ? "Turn trading OFF" : "Turn trading ON";
+      btn.className = "btn" + (on ? "" : " primary");
+      note.textContent = on
+        ? "Auto-trading is ON. The executor checks this switch before every trade."
+        : "Auto-trading is OFF. No new trades will be placed. Trades already placed still settle on their own.";
+    } catch(e) { /* the switch card must never break the board */ }
+  }
+
+  async function toggleTrading(){
+    const t = window._trading;
+    if (!t.setup || t.busy || t.enabled === null) return;
+    const pw = prompt("Enter the trading passcode:");
+    if (!pw) return;
+    const target = !t.enabled;
+    t.busy = true;
+    renderTrading({ trading_enabled: t.enabled });
+    try {
+      const r = await sb.rpc("set_trading_enabled", { p_passcode: pw, p_enabled: target });
+      if (r.error || r.data !== true){
+        alert("Passcode not accepted, nothing changed.");
+      } else {
+        t.enabled = target;
+      }
+    } catch(e) {
+      alert("Trading control not set up yet, nothing changed.");
+    }
+    t.busy = false;
+    loadAll();
+  }
+  document.getElementById("trade-btn").addEventListener("click", toggleTrading);
 
   function liveCard(a, hero){
     const dirCls = a.direction === "UP" ? "up" : "down";
