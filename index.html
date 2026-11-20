@@ -306,8 +306,8 @@
       '<div class="demo-strip">' +
       '<div class="metric"><label>Demo account</label><b>' + fmtMoney(s.balance_dollars) + '</b><small>Kalshi demo balance</small></div>' +
       '<div class="metric"><label>Trades taken</label><b>' + taken + '</b><small>Alerts the demo trader bought</small></div>' +
-      '<div class="metric"><label>Demo P&amp;L</label><b class="' + (pnl > 0 ? "pnl-pos" : (pnl < 0 ? "pnl-neg" : "")) + '">' + fmtSignedMoney(s.demo_pnl_dollars) + '</b><small>Settled demo trades only</small></div>' +
-      '<div class="metric"><label>Demo record</label><b>' + (s.demo_wins || 0) + '-' + (s.demo_losses || 0) + '</b><small>' + winRate(s.demo_wins, s.demo_losses) + ' on settled demo trades</small></div>' +
+      '<div class="metric"><label>Demo P&amp;L</label><b class="' + (pnl > 0 ? "pnl-pos" : (pnl < 0 ? "pnl-neg" : "")) + '">' + fmtSignedMoney(s.demo_pnl_dollars) + '</b><small>Settled alert trades only</small></div>' +
+      '<div class="metric"><label>Demo record</label><b>' + (s.demo_wins || 0) + '-' + (s.demo_losses || 0) + '</b><small>' + winRate(s.demo_wins, s.demo_losses) + ' on settled alert trades</small></div>' +
       '</div>' +
       '<div class="demo-score">On traded alerts: <b>stated ' + (s.stated_wins || 0) + '-' + (s.stated_losses || 0) + ' (' + winRate(s.stated_wins, s.stated_losses) + ')</b>' +
       ' · <b>demo ' + (s.demo_wins || 0) + '-' + (s.demo_losses || 0) + ' (' + winRate(s.demo_wins, s.demo_losses) + ')</b>' +
