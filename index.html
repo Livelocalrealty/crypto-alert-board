@@ -252,20 +252,29 @@
   function demoCard(r){
     const settled = r.result === "won" || r.result === "lost";
     const won = r.result === "won";
+    const noFill = r.status === "no_fill";
+    const manual = String(r.alert_key || "").indexOf("MANUAL") === 0;
     const cls = settled ? (won ? "win" : "loss") : "";
-    const badge = settled ? (won ? "WON" : "LOST") : "OPEN";
+    const badge = settled ? (won ? "WON" : "LOST") : (noFill ? "NO FILL" : "OPEN");
     const end = r.window_end_utc ? new Date(r.window_end_utc) : null;
     const endTxt = end && !isNaN(end)
       ? end.toLocaleString("en-US",{timeZone:"America/Chicago", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}) + " CT" : "";
     const bits = [];
-    if (r.fill_price_cents != null && r.alert_cost_cents != null)
-      bits.push("Bought at " + r.fill_price_cents + "¢ vs " + r.alert_cost_cents + "¢ at the alert");
-    else if (r.fill_price_cents != null)
-      bits.push("Bought at " + r.fill_price_cents + "¢");
-    if (r.fill_delay_s != null) bits.push("filled " + fmtDelay(r.fill_delay_s) + " after the alert");
-    if (r.contracts != null) bits.push(r.contracts + (Number(r.contracts) === 1 ? " contract" : " contracts"));
-    if (r.stake_cents != null && Number(r.stake_cents) > 0) bits.push(fmtMoney(Number(r.stake_cents) / 100) + " in");
+    if (noFill){
+      bits.push("order canceled, nothing filled");
+    } else {
+      if (r.fill_price_cents != null && r.alert_cost_cents != null)
+        bits.push("Bought at " + r.fill_price_cents + "¢ vs " + r.alert_cost_cents + "¢ at the alert");
+      else if (r.fill_price_cents != null)
+        bits.push("Bought at " + r.fill_price_cents + "¢");
+      if (r.fill_delay_s != null) bits.push("filled " + fmtDelay(r.fill_delay_s) + " after the alert");
+      if (r.contracts != null) bits.push(r.contracts + (Number(r.contracts) === 1 ? " contract" : " contracts"));
+      if (r.stake_cents != null && Number(r.stake_cents) > 0) bits.push(fmtMoney(Number(r.stake_cents) / 100) + " in");
+    }
     let settleLine = "";
+    if (noFill){
+      settleLine = "<p>No position taken · P&amp;L " + fmtSignedMoney(0) + ".</p>";
+    }
     if (settled){
       settleLine = "<p>" + (won ? "Won" : "Lost") +
         (r.payout_cents != null ? " · paid " + fmtMoney(Number(r.payout_cents) / 100) : "") +
@@ -274,7 +283,7 @@
     }
     return '<div class="result-card ' + cls + '">' +
       '<span class="result-badge' + (settled ? "" : " open") + '">' + badge + '</span>' +
-      '<div class="result-main"><b>' + esc(r.direction || "") + ' on ' + esc(r.coin || "") + '</b>' +
+      '<div class="result-main"><b>' + esc(r.direction || "") + ' on ' + esc(r.coin || "") + '</b>' + (manual ? ' <span class="badge-demo">TEST</span>' : '') +
       (bits.length ? '<p>' + esc(bits.join(" · ")) + '.</p>' : "") + settleLine + '</div>' +
       '<div class="result-side">' + (endTxt ? "Block ending<br>" + esc(endTxt) : "") + '</div>' +
       '</div>';
