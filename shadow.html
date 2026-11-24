@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>Shadow Testing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Archivo:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://mctueqwjzppcxtygdnfn.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jdHVlcXdqenBwY3h0eWdkbmZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NjI4NjMsImV4cCI6MjEwODQzODg2M30.Oju5x90BzuVqy2rSJiK9BhFyQtmhnWb6aQDexOSyYLM";
+</script>
+<style>
+  :root{
+    --bg:#0b0e11; --panel:#14181d; --panel2:#1a1f26; --line:#242c36;
+    --text:#f2f4f7; --muted:#9aa6b2; --muted2:#6b7885;
+    --green:#16c784; --green-dim:#0e2e22; --red:#ff4757; --red-dim:#33181c;
+    --amber:#f5a623; --amber-dim:#2e2410;
+    --radius:16px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f3f4f2; --panel:#ffffff; --panel2:#f7f7f5; --line:#e2e6e1; --text:#12161a; --muted:#5b6773; --muted2:#8a95a1; --green-dim:#e3f6ee; --red-dim:#ffe9eb; --amber-dim:#fff3d6; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:"Archivo",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:18px 16px 40px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.02em;font-size:18px}
+  .live-dot{width:10px;height:10px;border-radius:999px;background:var(--amber);box-shadow:0 0 0 0 rgba(245,166,35,.5);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,166,35,.45)}70%{box-shadow:0 0 0 10px rgba(245,166,35,0)}100%{box-shadow:0 0 0 0 rgba(245,166,35,0)}}
+  .live-label{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.12em;font-weight:700;color:var(--amber);border:1px solid var(--line);background:var(--panel);padding:6px 9px;border-radius:999px}
+  .clock{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);text-align:right;line-height:1.4}
+  .explainer{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .explainer p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}
+  .explainer p strong{color:var(--text)}
+  .section-label{margin:22px 2px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .section-label h3{margin:0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .section-label span{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted2)}
+  .sumtable{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;font-size:13.5px}
+  .sumtable th,.sumtable td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line)}
+  .sumtable th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--panel2)}
+  .sumtable tr:last-child td{border-bottom:none}
+  .sumtable .num{font-family:"JetBrains Mono",monospace;font-weight:700;white-space:nowrap}
+  .sumtable .chg{color:var(--muted);font-size:12.5px}
+  .sumtable tr.real td{background:var(--panel2)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .card h4{margin:0;font-size:15px;letter-spacing:-.01em}
+  .card .sub{margin:3px 0 10px;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .card .rec{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);margin-bottom:10px}
+  .card .rec b{color:var(--text)}
+  .entry{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+  .entry .main{flex:1;min-width:0}
+  .entry .main b{font-size:13.5px}
+  .entry .meta{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted2);text-align:right;line-height:1.55;white-space:nowrap}
+  .badge{font-family:"JetBrains Mono",monospace;font-weight:800;font-size:10.5px;padding:4px 7px;border-radius:999px;white-space:nowrap}
+  .badge.win{background:var(--green-dim);color:var(--green)}
+  .badge.loss{background:var(--red-dim);color:var(--red)}
+  .badge.pending{background:var(--amber-dim);color:var(--amber)}
+  .dir-up{color:var(--green);font-weight:800}
+  .dir-down{color:var(--red);font-weight:800}
+  .empty{color:var(--muted2);font-size:13px;padding:10px 0 2px}
+  .foot{margin-top:22px;color:var(--muted2);font-size:12px;line-height:1.6}
+  .foot a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand"><span class="live-dot"></span> Shadow testing <span class="live-label">PAPER ONLY</span></div>
+    <div class="clock" id="clock"></div>
+  </div>
+
+  <div class="explainer">
+    <p><strong>Silent paper tests.</strong> Each model below is the live algo with exactly one change, so we can see what that one change does. The real algo is untouched and no trades are placed from this page. The first row is the real algo over the same period, for comparison.</p>
+  </div>
+
+  <div class="section-label"><h3>Scoreboard</h3><span id="updated"></span></div>
+  <div style="overflow-x:auto">
+  <table class="sumtable">
+    <thead><tr><th>Model</th><th>The one change</th><th>Trades</th><th>Record</th><th>Win rate</th><th>Avg cost</th></tr></thead>
+    <tbody id="sumBody"><tr><td colspan="6" class="chg">Loading...</td></tr></tbody>
+  </table>
+  </div>
+
+  <div class="section-label"><h3>Latest per model</h3><span>last 15 each, newest first</span></div>
+  <div class="cards" id="cards"></div>
+
+  <p class="foot">Results are graded by Kalshi settlement, the same way as the main board. This page refreshes on its own. Back to the <a href="index.html">main alert board</a>.</p>
+</div>
+
+<script>
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const ORDER = ["prob70","edge8","pm50","whisker78","window","doge"];
+  const FALLBACK = {
+    prob70:{label:"Model 70%",description:"Model probability bar 70% instead of 75%"},
+    edge8:{label:"Edge 8",description:"Edge bar 8 points instead of 12"},
+    pm50:{label:"Polymarket 50",description:"Polymarket floor 50% instead of 55%"},
+    whisker78:{label:"Whisker 78",description:"Whisker headline bar 78% instead of 85%"},
+    window:{label:"Wide window",description:"Entry window 2.5 to 14.0 minutes left instead of 3.5 to 13.5"},
+    doge:{label:"DOGE only",description:"All live gates unchanged, coin DOGE only"},
+    real:{label:"Real algo (current)",description:"Unchanged live rules, same period"}
+  };
+  function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+  function ctTime(iso){
+    if(!iso) return "";
+    try{ return new Date(iso).toLocaleString("en-US",{timeZone:"America/Chicago",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"}); }
+    catch(e){ return ""; }
+  }
+  function pct(v){ return v==null ? "n/a" : (Math.round(v*10)/10) + "%"; }
+  function cents(v){ return v==null ? "n/a" : Math.round(v) + "c"; }
+
+  async function load(){
+    const [st, en] = await Promise.all([
+      sb.from("shadow_state").select("*"),
+      sb.from("shadow_entries").select("*").order("fired_at_utc",{ascending:false}).limit(400)
+    ]);
+    const states = {};
+    (st.data||[]).forEach(r=>{ states[r.variant]=r; });
+    const entries = en.data||[];
+
+    // Summary table: real baseline first, then the variants.
+    const rows = ["real"].concat(ORDER).map(k=>{
+      const r = states[k] || {};
+      const fb = FALLBACK[k];
+      const label = r.label || fb.label;
+      const desc = r.description || fb.description;
+      const trades = r.trades||0, w = r.wins||0, l = r.losses||0;
+      return `<tr class="${k==="real"?"real":""}">
+        <td><b>${esc(label)}</b></td>
+        <td class="chg">${esc(desc)}</td>
+        <td class="num">${trades}</td>
+        <td class="num">${w}-${l}</td>
+        <td class="num">${pct(r.win_rate_pct)}</td>
+        <td class="num">${cents(r.avg_cost_cents)}</td></tr>`;
+    }).join("");
+    document.getElementById("sumBody").innerHTML = rows;
+    document.getElementById("updated").textContent =
+      "updated " + new Date().toLocaleTimeString("en-US",{timeZone:"America/Chicago",hour:"numeric",minute:"2-digit",second:"2-digit"});
+
+    // One compact card per variant, last 15 entries only.
+    document.getElementById("cards").innerHTML = ORDER.map(k=>{
+      const r = states[k] || {};
+      const fb = FALLBACK[k];
+      const mine = entries.filter(e=>e.variant===k).slice(0,15);
+      const list = mine.length ? mine.map(e=>{
+        const res = e.result || "pending";
+        const badge = res==="win" ? "WIN" : (res==="loss" ? "LOSS" : "OPEN");
+        const dirCls = e.direction==="UP" ? "dir-up" : "dir-down";
+        return `<div class="entry">
+          <span class="badge ${res}">${badge}</span>
+          <span class="main"><b>${esc(e.coin)}</b> <span class="${dirCls}">${esc(e.direction)}</span></span>
+          <span class="meta">${esc(ctTime(e.window_end_utc))} CT<br>cost ${cents(e.cost_cents)} · model ${pct(e.model_prob_pct)}</span>
+        </div>`;
+      }).join("") : `<div class="empty">No shadow trades yet</div>`;
+      return `<div class="card">
+        <h4>${esc(r.label || fb.label)}</h4>
+        <p class="sub">${esc(r.description || fb.description)}</p>
+        <div class="rec">Record <b>${r.wins||0}-${r.losses||0}</b> · win rate <b>${pct(r.win_rate_pct)}</b> · avg cost <b>${cents(r.avg_cost_cents)}</b></div>
+        ${list}
+      </div>`;
+    }).join("");
+  }
+
+  function tickClock(){
+    document.getElementById("clock").innerHTML =
+      "<b>" + new Date().toLocaleTimeString("en-US",{timeZone:"America/Chicago",hour:"numeric",minute:"2-digit",second:"2-digit"}) + " CT</b><br>shadow results";
+  }
+  tickClock(); setInterval(tickClock, 1000);
+  load();
+  setInterval(load, 20000);
+  try{
+    sb.channel("shadow-live")
+      .on("postgres_changes",{event:"*",schema:"public",table:"shadow_entries"},()=>load())
+      .on("postgres_changes",{event:"*",schema:"public",table:"shadow_state"},()=>load())
+      .subscribe();
+  }catch(e){}
+</script>
+</body>
+</html>
