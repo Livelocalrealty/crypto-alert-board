@@ -68,6 +68,7 @@
   .result-main b{font-size:16px;letter-spacing:-.01em}
   .result-main p{margin:3px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
   .result-side{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted2);text-align:right;line-height:1.6}
+  .era-card .result-main{flex-basis:100%}
   .waiting{margin-top:10px;background:var(--panel);border:1px dashed #33404e;border-radius:16px;padding:16px 18px;display:flex;gap:14px;align-items:center}
   @media (prefers-color-scheme: light){ .waiting{border-color:#cbd3cc} }
   .radar{flex:none;width:44px;height:44px;border-radius:999px;border:1px solid var(--line);display:grid;place-items:center;position:relative;background:var(--panel2);font-size:20px}
@@ -427,7 +428,7 @@
       const c = eraCounts[i];
       if (!c) return "";
       const n = (c.kalshi.w + c.kalshi.l);
-      return '<div class="result-card">' +
+      return '<div class="result-card era-card">' +
         '<div class="result-main"><b>' + esc(e.label) + (e.current ? " · current rules" : "") + '</b>' +
         '<p>' + esc(eraRecordText(c)) + '</p>' +
         '<p>' + esc(e.note) + '</p></div>' +
