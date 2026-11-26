@@ -221,6 +221,15 @@
     let etag = null;
     function flagGet(){ try { return sessionStorage.getItem("shellReloadFor"); } catch (e) { return null; } }
     function flagSet(v){ try { sessionStorage.setItem("shellReloadFor", v); } catch (e) {} }
+    // Reload without moving the reader: remember the scroll position
+    // and let the restore block below put it back once content lands.
+    function reloadKeepingPlace(){
+      try {
+        sessionStorage.setItem("shellReloadScroll",
+          JSON.stringify({y: window.scrollY, t: Date.now()}));
+      } catch (e) {}
+      location.reload();
+    }
     async function probe(){
       try {
         const r = await fetch(location.href, {method: "HEAD", cache: "no-store"});
@@ -228,16 +237,39 @@
         const lm = Date.parse(r.headers.get("Last-Modified") || "") || 0;
         if (e){
           if (etag === null) etag = e;
-          else if (e !== etag) { location.reload(); return; }
+          else if (e !== etag) { reloadKeepingPlace(); return; }
         }
         if (lm && loadedLM && lm > loadedLM + 1000 && flagGet() !== String(lm)){
           flagSet(String(lm));
-          location.reload();
+          reloadKeepingPlace();
         }
       } catch (err) { /* offline or blocked: try again next minute */ }
     }
     probe();
     setInterval(probe, 60000);
+  })();
+  // After a self-refresh reload, return the reader to where they were.
+  // The page renders empty, then fills, so retry as content lands; any
+  // scroll of their own cancels the restore.
+  (function restoreScrollAfterShellReload(){
+    let raw = null;
+    try {
+      raw = sessionStorage.getItem("shellReloadScroll");
+      sessionStorage.removeItem("shellReloadScroll");
+    } catch (e) {}
+    if (!raw) return;
+    let info = null;
+    try { info = JSON.parse(raw); } catch (e) {}
+    if (!info || !info.y || (Date.now() - info.t) > 120000) return;
+    const y = info.y;
+    let cancelled = false;
+    const cancel = () => { cancelled = true; };
+    window.addEventListener("wheel", cancel, {passive: true, once: true});
+    window.addEventListener("touchmove", cancel, {passive: true, once: true});
+    const restore = () => { if (!cancelled) window.scrollTo(0, y); };
+    restore();
+    setTimeout(restore, 350);
+    setTimeout(restore, 1200);
   })();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadAll(); });
   window.addEventListener("focus", loadAll);
