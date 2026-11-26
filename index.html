@@ -326,9 +326,12 @@
   // When the algo changes again, add the new era at the TOP of this
   // list (and in eras.json) and the split follows automatically.
   const ERAS = [
-    { label: "Oct 21 update", dates: "Oct 21, 2026 to now", current: true,
+    { label: "Nov 26 update", dates: "Nov 26, 2026 to now", current: true,
+      from_fired_at: "2026-11-26T12:30:00Z",
+      note: "DOGE added to the roster. The algo now watches BTC, ETH, SOL, XRP, HYPE and DOGE. Gates and sizing unchanged." },
+    { label: "Oct 21 update", dates: "Oct 21 to Nov 26, 2026", current: false,
       from_fired_at: "2026-10-21T15:45:00Z",
-      note: "Whisker setups need headline 85% or higher. Polymarket confirmation floor 55%. Chop guard pauses alerts after 3 straight losses. DOGE added to the roster Nov 26, 2026." },
+      note: "Whisker setups need headline 85% or higher. Polymarket confirmation floor 55%. Chop guard pauses alerts after 3 straight losses." },
     { label: "Original rules", dates: "Oct 12 to Oct 21, 2026", current: false,
       from_fired_at: null,
       note: "The rule set as launched on Oct 12." }
