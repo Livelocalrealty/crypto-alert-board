@@ -207,6 +207,37 @@
       }
     });
   setInterval(loadAll, 15000);
+  // Self-refresh for the page shell: the data above updates live, but
+  // the page file itself (wording, era cards) only changes when a new
+  // version is published. Every minute, ask for this page's current
+  // ETag and Last-Modified with the browser cache bypassed; if the
+  // published version is newer than the copy loaded here, reload once
+  // so an open tab picks up the new shell on its own. A session flag
+  // remembers the version already reloaded for, so a copy the cache
+  // still serves cannot cause a reload loop.
+  (function watchPageVersion(){
+    const loadedLM = Date.parse(document.lastModified) || 0;
+    let etag = null;
+    function flagGet(){ try { return sessionStorage.getItem("shellReloadFor"); } catch (e) { return null; } }
+    function flagSet(v){ try { sessionStorage.setItem("shellReloadFor", v); } catch (e) {} }
+    async function probe(){
+      try {
+        const r = await fetch(location.href, {method: "HEAD", cache: "no-store"});
+        const e = r.headers.get("ETag");
+        const lm = Date.parse(r.headers.get("Last-Modified") || "") || 0;
+        if (e){
+          if (etag === null) etag = e;
+          else if (e !== etag) { location.reload(); return; }
+        }
+        if (lm && loadedLM && lm > loadedLM + 1000 && flagGet() !== String(lm)){
+          flagSet(String(lm));
+          location.reload();
+        }
+      } catch (err) { /* offline or blocked: try again next minute */ }
+    }
+    probe();
+    setInterval(probe, 60000);
+  })();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) loadAll(); });
   window.addEventListener("focus", loadAll);
   window.addEventListener("online", loadAll);
