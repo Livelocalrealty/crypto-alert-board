@@ -341,7 +341,7 @@
     }
     if (settled){
       settleLine = "<p>" + (won ? "Won" : "Lost") +
-        (r.payout_cents != null ? " · paid " + fmtMoney(Number(r.payout_cents) / 100) : "") +
+        (r.payout_cents != null ? " · paid out " + fmtMoney(Number(r.payout_cents) / 100) : "") +
         (r.pnl_cents != null ? ' · P&amp;L <span class="' + (Number(r.pnl_cents) >= 0 ? "pnl-pos" : "pnl-neg") + '">' + fmtSignedMoney(Number(r.pnl_cents) / 100) + "</span>" : "") +
         ".</p>";
     }
